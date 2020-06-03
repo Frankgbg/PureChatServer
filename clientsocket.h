@@ -58,6 +58,9 @@ private:
                     const QString &friendName, const QString &friendSign);//发送好友信息
     void sendGroup(const QByteArray &type, const qulonglong &groupId,
                    const QString &groupName);//发送群信息
+
+    void sendOfflineMsg(qulonglong ownId); //发送离线消息
+
     uint byteArrayToUint(const QByteArray &byteArray);//QByteArray 转 uint,用于类型和长度判断
     qulonglong stringToQulonglong(const QString &string);//QString 转 qulonglong,用于Id判断
     QString byteArrayToUnicode(const QByteArray &array);
@@ -70,7 +73,8 @@ private:
 signals:
     void toServerData(qulonglong friendId,const QByteArray &type, const QByteArray &data);//发送给好友数据
     void toServerUpdata(QString msg);//传给服务器数据信号
-    void toServerDisconnection(qintptr descriptor);//传给服务器断开连接信号
+    void toServerDisconnection(qintptr descriptor, qulonglong id);//传给服务器断开连接信号
+    void toServerSuccessful(qulonglong id, qintptr handle);//登录成功信号
 };
 
 #endif // CLIENTSOCKET_H

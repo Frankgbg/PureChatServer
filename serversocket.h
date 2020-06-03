@@ -19,11 +19,13 @@ public:
 public slots:
     void clientData(qulonglong friendId, const QByteArray &type, const QByteArray &data);//客户传输给好友信息槽
     void clientUpdate(QString msg);//客户tcp数据槽,用来显示在Ui界面
-    void clientDisconnection(qintptr descriptor);//客户tcp断开槽
+    void clientDisconnection(qintptr descriptor, qulonglong id);//客户tcp断开槽
+    void signUpSuccessful(qulonglong id, qintptr handle);//登录成功
 
 private:
     uint numberOfPeople;
-    QList<ClientSocket*> *clientSocketList;//客户tcp列表
+    QHash<qintptr, ClientSocket*> *clientTemporary;//临时连接
+    QHash<qulonglong, ClientSocket*> *clientSocket;//常连接
     QSqlDatabase *db;
 
 signals:

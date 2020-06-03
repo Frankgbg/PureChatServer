@@ -160,7 +160,7 @@ void ClientSocket::receiveData()
 void ClientSocket::disconnection()
 {
     if(ownId != 0) dbo->logout(ownId);
-    emit toServerDisconnection(this->socketDescriptor());
+    emit toServerDisconnection(this->socketDescriptor(),ownId);
 }
 
 qulonglong ClientSocket::getId()
@@ -226,12 +226,14 @@ void ClientSocket::signUp(const QJsonObject &json)
     if(!isSuccessful){//注册失败
         sendTips(signUpType,requestFailed);
         emit toServerUpdata("类型:"+signUpType+"  "+requestFailed);
+        close();
         return ;
     }
     QJsonObject json1;
     json1.insert("ownId",QString::number(ownId));
     sendData(signUpType,json1);//发送注册到的账号
     emit toServerUpdata("类型:"+signUpType+"  "+complete);
+    close();
 }
 
 void ClientSocket::loginVerify(const QJsonObject &json)
@@ -255,30 +257,13 @@ void ClientSocket::loginVerify(const QJsonObject &json)
         close();//登录失败,关闭连接
         return ;
     }
+    emit toServerSuccessful(id,this->socketDescriptor());//登录成功
     ownId = id;//保存tcp连接客户账号
     ownName = name;
     searchFriends(ownId);//发送好友列表信息
     searchGroups(ownId);//发送群列表信息
 
-    QString fileName = "./msg/"+QString::number(id)+".txt";
-    QFile file(fileName);
-    if(file.exists()){
-        file.open(QIODevice::ReadWrite);
-        while(true){
-            QByteArray type = file.readLine();
-            if(type == "") break;
-            uint length = file.readLine().toUInt();
-            QByteArray data = file.read(length);
-            QString str = byteArrayToUnicode(data);
-            send(type,str.toUtf8());
-        }
-        emit toServerUpdata("离线消息已发送.");
-        file.close();
-        if(!QFile::remove(fileName)){
-            file.open(QIODevice::WriteOnly);
-            file.close();
-        }
-    }
+    sendOfflineMsg(ownId);
 }
 
 void ClientSocket::modifyOwnPassword(const QJsonObject &json)
@@ -732,7 +717,7 @@ void ClientSocket::chatGroup(const QJsonObject &json)
         if(query->value(0).toULongLong() == ownId) continue;//不发给自己
         if(query->value(2).toBool()){//好友在线,在线消息
             emit toServerData(query->value(0).toULongLong(),chatGroupType,data);
-            emit toServerUpdata("类型:"+chatFriendType+"  群成员:"+query->value(0).toString()+"在线,发送完成.");
+            emit toServerUpdata("类型:"+chatGroupType+"  群成员:"+query->value(0).toString()+"在线,发送完成.");
         }
         else{
             QString fileName = "./msg/"+query->value(0).toString()+".txt";
@@ -741,7 +726,7 @@ void ClientSocket::chatGroup(const QJsonObject &json)
             file.write(chatGroupType+'\n'+QString::number(data.size()).toLocal8Bit()+'\n');
             file.write(QString(data).toUtf8());
             file.close();
-            emit toServerUpdata("类型:"+chatFriendType+"  群成员:"+query->value(0).toString()+"不在线,已保存.");
+            emit toServerUpdata("类型:"+chatGroupType+"  群成员:"+query->value(0).toString()+"不在线,已保存.");
         }
     }
     delete query;
@@ -762,6 +747,35 @@ void ClientSocket::sendGroup(const QByteArray &type, const qulonglong &groupId, 
     json.insert("groupId",QString::number(groupId));
     json.insert("groupName",groupName);
     sendData(type,json);
+}
+
+void ClientSocket::sendOfflineMsg(qulonglong ownId)
+{
+    QString fileName = "./msg/"+QString::number(ownId)+".txt";
+    QFile file(fileName);
+    if(file.exists()){
+        file.open(QIODevice::ReadWrite);
+        while(true){
+            QByteArray type = file.readLine();
+            if(type == "") break;
+            uint length = file.readLine().toUInt();
+            QByteArray data = file.read(length);
+            QString str = byteArrayToUnicode(data);
+            QByteArray data_ut8 = str.toUtf8();
+            send(type,data_ut8);
+            if(type == chatGroupType+'\n'){//如果是群消息，发送群成员
+                QJsonObject json = QJsonDocument::fromJson(data_ut8).object();
+                qulonglong groupId = json.value("groupId").toString().toULongLong();
+                searchFriendsOfGroup(groupId);
+            }
+        }
+        emit toServerUpdata("离线消息已发送.");
+        file.close();
+        if(!QFile::remove(fileName)){
+            file.open(QIODevice::WriteOnly);
+            file.close();
+        }
+    }
 }
 
 uint ClientSocket::byteArrayToUint(const QByteArray &byteArray)

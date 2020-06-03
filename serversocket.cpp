@@ -7,7 +7,8 @@ ServerSocket::ServerSocket(quint16 port, QTcpServer *parent) :
     QTcpServer(parent)
 {
     numberOfPeople = 0;
-    clientSocketList = new QList<ClientSocket*>;
+    clientTemporary = new QHash<qintptr, ClientSocket*>;
+    clientSocket = new QHash<qulonglong, ClientSocket*>;
 
     db = new QSqlDatabase(QSqlDatabase::addDatabase("QODBC"));
     QString dsn = QString::fromLocal8Bit("PureChatDataSource");//数据源名称
@@ -22,59 +23,77 @@ ServerSocket::ServerSocket(quint16 port, QTcpServer *parent) :
 
 ServerSocket::~ServerSocket()
 {
-    while(clientSocketList->count() > 0){
-        clientSocketList->at(0)->close();
-        clientSocketList->removeAt(0);
+    while(!clientTemporary->isEmpty()){
+        clientTemporary->begin().value()->close();
+        clientTemporary->erase(clientTemporary->begin());
     }
-    delete clientSocketList;
+    delete clientTemporary;
+
+    while(!clientSocket->isEmpty()){
+        clientSocket->begin().value()->close();
+        clientSocket->erase(clientSocket->begin());
+    }
+    delete clientSocket;
+
     if(db->isOpen()) db->close();
     delete db;
 }
 
 void ServerSocket::incomingConnection(qintptr handle)
 {
-    ClientSocket *clientSocket = new ClientSocket(QSqlDatabase::database());//建立新的客户tcp
+    ClientSocket *client = new ClientSocket(QSqlDatabase::database());//建立新的客户tcp
 
-    connect(clientSocket,SIGNAL(toServerData(qulonglong,const QByteArray&,const QByteArray&)),
+    connect(client,SIGNAL(toServerData(qulonglong,const QByteArray&,const QByteArray&)),
             this,SLOT(clientData(qulonglong,const QByteArray&,const QByteArray&)));
-    connect(clientSocket,SIGNAL(toServerUpdata(QString)),this,SLOT(clientUpdate(QString)));
-    connect(clientSocket,SIGNAL(toServerDisconnection(qintptr)),this,SLOT(clientDisconnection(qintptr)));
+    connect(client,SIGNAL(toServerUpdata(QString)),this,SLOT(clientUpdate(QString)));
+    connect(client,SIGNAL(toServerDisconnection(qintptr,qulonglong)),
+            this,SLOT(clientDisconnection(qintptr,qulonglong)));
+    connect(client,SIGNAL(toServerSuccessful(qulonglong, qintptr)),
+            this,SLOT(signUpSuccessful(qulonglong, qintptr)));
 
-    clientSocket->setSocketDescriptor(handle);//设置socket描述符
-    clientSocketList->append(clientSocket);//添加到socket列表
+    client->setSocketDescriptor(handle);//设置socket描述符
+    clientTemporary->insert(handle,client);//添加到socket列表
 
-    emit toUiUpdate("<br><br><br>");
-    emit toUiUpdate("新的连接：IP:"+clientSocket->peerAddress().toString());
+    emit toUiUpdate("<br><br><br>新的连接：IP:"+client->peerAddress().toString());
     emit toUiNumber(++numberOfPeople);
 }
 
 void ServerSocket::clientData(qulonglong friendId, const QByteArray &type, const QByteArray &data)
 {
-    emit toUiUpdate("已接收消息");
-    for(int i = 0;i < clientSocketList->count();++i){
-        ClientSocket *item = clientSocketList->at(i);
-        if(item->getId() == friendId){
-            item->send(type,data);
-            emit toUiUpdate("已发送消息");
-            return ;
-        }
+    auto ite = clientSocket->find(friendId);
+    if(ite != clientSocket->end()){
+        ite.value()->send(type,data);
     }
 }
 
 void ServerSocket::clientUpdate(QString msg)
 {
-    emit toUiUpdate(msg);//发送信号给PureChatServer界面
+    emit toUiUpdate(msg);//发送信息给PureChatServer界面
 }
 
-void ServerSocket::clientDisconnection(qintptr descriptor)
+void ServerSocket::clientDisconnection(qintptr descriptor, qulonglong id)
 {
-    for(int i = 0;i < clientSocketList->count();++i){
-        ClientSocket *item = clientSocketList->at(i);
-        if(item->socketDescriptor() == descriptor){
-            emit toUiUpdate("IP:"+item->peerAddress().toString()+" is disconnected!<br><br><br>");
-            emit toUiNumber(--numberOfPeople);
-            clientSocketList->removeAt(i);//客户端断开连接,删除套接字
-            return ;
-        }
+    auto ite = clientTemporary->find(descriptor);
+    if(ite != clientTemporary->end()){//临时连接断开
+        clientTemporary->erase(ite);
+        emit toUiUpdate("IP:"+ite.value()->peerAddress().toString()+" is disconnected!<br><br><br>");
+        emit toUiNumber(--numberOfPeople);
+        return ;
+    }
+    auto ite2 = clientSocket->find(id);
+    if(ite2 != clientSocket->end()){
+        emit toUiUpdate("IP:"+ite2.value()->peerAddress().toString()+" is disconnected!<br><br><br>");
+        emit toUiNumber(--numberOfPeople);
+        clientSocket->erase(ite2);//客户端断开连接,删除套接字
+    }
+}
+
+void ServerSocket::signUpSuccessful(qulonglong id, qintptr handle)
+{
+    //登录成功,转移临时连接至常连接
+    auto ite = clientTemporary->find(handle);
+    if(ite != clientTemporary->end()){
+        clientSocket->insert(id,ite.value());
+        clientTemporary->erase(ite);
     }
 }
