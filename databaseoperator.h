@@ -8,13 +8,13 @@
 class DatabaseOperator
 {
 public:
-    explicit DatabaseOperator(const QSqlDatabase &db);
+    explicit DatabaseOperator(const QSqlDatabase &_db);
     ~DatabaseOperator();
 
 public:
     inline bool isOpen() const { return db.isOpen();}//数据库是否打开
     inline void open();     //打开数据库
-    inline void close() { if(isOpen()) db.close();}//关闭数据库
+    inline void close();    //关闭数据库
 
     bool signUp(QString ownName, QString ownPassword, qulonglong &returnId);//注册账号
     bool createGroup(qulonglong ownId, QString groupName, qulonglong &returnId);//创建群

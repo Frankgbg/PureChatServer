@@ -10,12 +10,12 @@ ServerSocket::ServerSocket(quint16 port, QTcpServer *parent) :
     clientTemporary = new QHash<qintptr, ClientSocket*>;
     clientSocket = new QHash<qulonglong, ClientSocket*>;
 
-    db = new QSqlDatabase(QSqlDatabase::addDatabase("QODBC"));
+    db = new QSqlDatabase(QSqlDatabase::addDatabase("QODBC","PureChat"));
     QString dsn = QString::fromLocal8Bit("PureChatDataSource");//数据源名称
     db->setHostName("localhost");//选择本地主机，127.0.0.1
     db->setDatabaseName(dsn);    //设置数据源名称
     db->setUserName("G_bg");     //登录用户
-    db->setPassword("********"); //密码
+    db->setPassword("19980728"); //密码
     db->setPort(1433);          //数据库端口
 
     listen(QHostAddress("172.16.225.210"),port);//监听端口
@@ -41,11 +41,12 @@ ServerSocket::~ServerSocket()
 
 void ServerSocket::incomingConnection(qintptr handle)
 {
-    ClientSocket *client = new ClientSocket(QSqlDatabase::database());//建立新的客户tcp
+    ClientSocket *client = new ClientSocket(QSqlDatabase::database("PureChat"));//建立新的客户tcp
 
-    connect(client,SIGNAL(toServerData(qulonglong,const QByteArray&,const QByteArray&)),
-            this,SLOT(clientData(qulonglong,const QByteArray&,const QByteArray&)));
-    connect(client,SIGNAL(toServerUpdata(QString)),this,SLOT(clientUpdate(QString)));
+    client->setSocketOption(QAbstractSocket::KeepAliveOption,true);
+    connect(client,SIGNAL(toServerData(qulonglong,const QByteArray&)),
+            this,SLOT(clientData(qulonglong,const QByteArray&)));
+    connect(client,SIGNAL(toServerUpdate(QString)),this,SLOT(clientUpdate(QString)));
     connect(client,SIGNAL(toServerDisconnection(qintptr,qulonglong)),
             this,SLOT(clientDisconnection(qintptr,qulonglong)));
     connect(client,SIGNAL(toServerSuccessful(qulonglong, qintptr)),
@@ -58,11 +59,11 @@ void ServerSocket::incomingConnection(qintptr handle)
     emit toUiNumber(++numberOfPeople);
 }
 
-void ServerSocket::clientData(qulonglong friendId, const QByteArray &type, const QByteArray &data)
+void ServerSocket::clientData(qulonglong friendId, const QByteArray &data)
 {
     auto ite = clientSocket->find(friendId);
     if(ite != clientSocket->end()){
-        ite.value()->send(type,data);
+        ite.value()->sendData(data);
     }
 }
 

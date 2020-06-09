@@ -30,6 +30,14 @@ void DatabaseOperator::open() {
     else qDebug()<<"Database opened failed!";
 }
 
+void DatabaseOperator::close()
+{
+    if(!isOpen()) return ;
+    db.close();
+    if(!isOpen()) qDebug()<<"Database closed successfully.";
+    else qDebug()<<"Database closed failed!";
+}
+
 bool DatabaseOperator::signUp(QString ownName, QString ownPassword, qulonglong &returnId)
 {
     returnId = 0;
@@ -193,7 +201,7 @@ bool DatabaseOperator::delGroup(qulonglong ownId, qulonglong groupId)
 QSqlQuery *DatabaseOperator::searchFriend(qulonglong friendId)
 {
     QString id = QString::number(friendId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("SELECT userId,userName,userSign,userLoginStatus,userIp "
@@ -206,7 +214,7 @@ QSqlQuery *DatabaseOperator::searchFriend(qulonglong friendId)
 QSqlQuery *DatabaseOperator::searchFriends(qulonglong ownId)
 {
     QString id = QString::number(ownId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("SELECT friendId,userName,userSign "
@@ -220,7 +228,7 @@ QSqlQuery *DatabaseOperator::searchFriends(qulonglong ownId)
 QSqlQuery *DatabaseOperator::searchGroup(qulonglong groupId)
 {
     QString id = QString::number(groupId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("SELECT groupId,groupName "
@@ -233,7 +241,7 @@ QSqlQuery *DatabaseOperator::searchGroup(qulonglong groupId)
 QSqlQuery *DatabaseOperator::searchGroups(qulonglong ownId)
 {
     QString id = QString::number(ownId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("SELECT Groups.groupId,groupName "
@@ -247,7 +255,7 @@ QSqlQuery *DatabaseOperator::searchGroups(qulonglong ownId)
 QSqlQuery *DatabaseOperator::searchFriendsOfGroup(qulonglong groupId)
 {
     QString id = QString::number(groupId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("SELECT Accounts.userId,userName,userLoginStatus,userIp "
@@ -261,7 +269,7 @@ QSqlQuery *DatabaseOperator::searchFriendsOfGroup(qulonglong groupId)
 QSqlQuery *DatabaseOperator::searchAccount(qulonglong ownId)
 {
     QString id = QString::number(ownId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("SELECT userPassword,userLoginStatus,userName "
@@ -273,7 +281,7 @@ QSqlQuery *DatabaseOperator::searchAccount(qulonglong ownId)
 void DatabaseOperator::updateLoginStatus(qulonglong ownId, bool ownLoginStatus, const QString &ownIp)
 {
     QString id = QString::number(ownId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     query->exec(QString("UPDATE Accounts "
@@ -284,7 +292,7 @@ void DatabaseOperator::updateLoginStatus(qulonglong ownId, bool ownLoginStatus, 
 bool DatabaseOperator::updateOwnPassword(qulonglong ownId, const QString &newPassword)
 {
     QString id = QString::number(ownId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("UPDATE Accounts "
@@ -297,7 +305,7 @@ bool DatabaseOperator::updateOwnPassword(qulonglong ownId, const QString &newPas
 bool DatabaseOperator::updateOwnName(qulonglong ownId, const QString &newName)
 {
     QString id = QString::number(ownId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("UPDATE Accounts "
@@ -310,7 +318,7 @@ bool DatabaseOperator::updateOwnName(qulonglong ownId, const QString &newName)
 bool DatabaseOperator::updateOwnSign(qulonglong ownId, const QString &newSign)
 {
     QString id = QString::number(ownId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("UPDATE Accounts "
@@ -324,7 +332,7 @@ bool DatabaseOperator::updateOwnSign(qulonglong ownId, const QString &newSign)
 bool DatabaseOperator::updateGroupName(qulonglong groupId, const QString &newName)
 {
     QString id = QString::number(groupId);
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     query->setForwardOnly(true);
     bool isSuccessful = query->exec(QString("UPDATE Groups "
@@ -337,7 +345,7 @@ bool DatabaseOperator::updateGroupName(qulonglong groupId, const QString &newNam
 
 bool DatabaseOperator::insertAccounts(const QString &ownId, const QString &ownPassword, const QString &ownName)
 {
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("INSERT INTO Accounts (userId,userPassword,userName,userLoginStatus) "
                                             "VALUES ('%1','%2','%3',0)").arg(ownId).arg(ownPassword).arg(ownName));
@@ -349,7 +357,7 @@ bool DatabaseOperator::insertAccounts(const QString &ownId, const QString &ownPa
 
 bool DatabaseOperator::deleteAccounts(const QString &ownId)
 {
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("DELETE FROM Accounts "
                                             "WHERE userId='%1'").arg(ownId));
@@ -362,7 +370,7 @@ bool DatabaseOperator::deleteAccounts(const QString &ownId)
 bool DatabaseOperator::insertFriends(const QString &ownId, const QString &friendId, QString &information)
 {
     if(queryFriends(ownId,friendId,information)) return false;
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("INSERT INTO Friends (userId,friendId) "
                                             "VALUES ('%1','%2')").arg(ownId).arg(friendId));
@@ -374,7 +382,7 @@ bool DatabaseOperator::insertFriends(const QString &ownId, const QString &friend
 
 bool DatabaseOperator::queryFriends(const QString &ownId, const QString &friendId, QString &information)
 {
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("SELECT friendId FROM Friends "
                                             "WHERE userId='%1' and friendId='%2'").arg(ownId).arg(friendId));
@@ -391,7 +399,7 @@ bool DatabaseOperator::queryFriends(const QString &ownId, const QString &friendI
 
 bool DatabaseOperator::deleteFriends(const QString &ownId, const QString &friendId)
 {
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("DELETE FROM Friends "
                                             "WHERE userId='%1' and friendId='%2'").arg(ownId).arg(friendId));
@@ -403,7 +411,7 @@ bool DatabaseOperator::deleteFriends(const QString &ownId, const QString &friend
 
 bool DatabaseOperator::insertGroups(const QString &groupId, const QString &groupName)
 {
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("INSERT INTO Groups (groupId,groupName,membersNumber) "
                                             "VALUES ('%1','%2',1)").arg(groupId).arg(groupName));
@@ -415,7 +423,7 @@ bool DatabaseOperator::insertGroups(const QString &groupId, const QString &group
 
 bool DatabaseOperator::deleteGroups(const QString &groupId)
 {
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("DELETE FROM Groups "
                                             "WHERE groupId='%1'").arg(groupId));
@@ -428,7 +436,7 @@ bool DatabaseOperator::deleteGroups(const QString &groupId)
 bool DatabaseOperator::insertCircle(const QString &ownId, const QString &groupId, QString &information)
 {
     if(queryCircle(ownId,groupId,information)) return false;
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("INSERT INTO Circle_of_friends (userId,groupId) "
                                             "VALUES ('%1','%2')").arg(ownId).arg(groupId));
@@ -440,7 +448,7 @@ bool DatabaseOperator::insertCircle(const QString &ownId, const QString &groupId
 
 bool DatabaseOperator::queryCircle(const QString &ownId, const QString &groupId, QString &information)
 {  
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("SELECT groupId FROM Circle_of_friends "
                                             "WHERE userId='%1' and groupId='%2'").arg(ownId).arg(groupId));
@@ -457,7 +465,7 @@ bool DatabaseOperator::queryCircle(const QString &ownId, const QString &groupId,
 
 bool DatabaseOperator::deleteCircle(const QString &ownId, const QString &groupId)
 {
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("DELETE FROM Circle_of_friends "
                                             "WHERE userId='%1' and groupId='%2'").arg(ownId).arg(groupId));
@@ -469,7 +477,7 @@ bool DatabaseOperator::deleteCircle(const QString &ownId, const QString &groupId
 
 qulonglong DatabaseOperator::maxUserId()
 {
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("SELECT max(userId) "
                                             "FROM Accounts"));
@@ -482,7 +490,7 @@ qulonglong DatabaseOperator::maxUserId()
 
 qulonglong DatabaseOperator::maxGroupId()
 {
-    if(!db.isOpen()) open();
+    if(!isOpen()) open();
     QSqlQuery *query = new QSqlQuery(db);
     bool isSuccessful = query->exec(QString("SELECT max(groupId) "
                                             "FROM Groups"));

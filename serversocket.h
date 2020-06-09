@@ -17,7 +17,7 @@ public:
     void incomingConnection(qintptr handle) override;//重载,当有新连接时触发
 
 public slots:
-    void clientData(qulonglong friendId, const QByteArray &type, const QByteArray &data);//客户传输给好友信息槽
+    void clientData(qulonglong friendId, const QByteArray &data);//客户传输给好友信息槽
     void clientUpdate(QString msg);//客户tcp数据槽,用来显示在Ui界面
     void clientDisconnection(qintptr descriptor, qulonglong id);//客户tcp断开槽
     void signUpSuccessful(qulonglong id, qintptr handle);//登录成功

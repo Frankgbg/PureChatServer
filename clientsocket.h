@@ -19,15 +19,11 @@ public slots:
 
 public:
     qulonglong getId();
-    void send(const QByteArray &type, const QByteArray &data);//发送"包"
+    void sendData(const QByteArray &data);//发送数据
+    void sendTips(int type, const QByteArray &data);//发送提示
 
 private:
-    QByteArray readDataLength(uint dataLength, QByteArray &data);//读dataLength字节数据
-    void sendType(const QByteArray &type);//发送类型
-    void sendData(const QByteArray &data);//发送数据
-
-    void sendData(const QByteArray &type, const QJsonObject &json);//发送数据"包"
-    void sendTips(const QByteArray &type, const QByteArray &data);//发送提示信息"包"
+    QByteArray readDataLength(QByteArray &data, uint dataLength);
 
     void signUp(const QJsonObject &json);//注册账号
     void loginVerify(const QJsonObject &json);//登录验证
@@ -35,7 +31,9 @@ private:
     void modifyOwnPassword(const QJsonObject &json);//修改个人密码
     void modifyOwnName(const QJsonObject &json);//修改个人昵称
     void modifyOwnSign(const QJsonObject &json);//修改个人签名
+    void modifyOwnImage(const QJsonObject &json);//修改个人头像
     void modifyGroupName(const QJsonObject &json);//修改群昵称
+    void modifyGroupImage(const QJsonObject &json);//修改群头像
 
     void searchFriend(const QJsonObject &json);//查找好友
     void addFriend(const QJsonObject &json);//添加好友
@@ -54,14 +52,17 @@ private:
     void chatFriend(const QJsonObject &json);//好友聊天
     void chatGroup(const QJsonObject &json);//群内聊天
 
-    void sendFriend(const QByteArray &type, const qulonglong &friendId,
-                    const QString &friendName, const QString &friendSign);//发送好友信息
-    void sendGroup(const QByteArray &type, const qulonglong &groupId,
-                   const QString &groupName);//发送群信息
+    void sendFriend(int type, const qulonglong &friendId,
+                    const QString &friendName, const QString &friendSign,
+                    const QPixmap &friendImage);//发送好友信息
+    void sendGroup(int type, const qulonglong &groupId,
+                   const QString &groupName, const QPixmap &groupImage);//发送群信息
 
     void sendOfflineMsg(qulonglong ownId); //发送离线消息
 
-    uint byteArrayToUint(const QByteArray &byteArray);//QByteArray 转 uint,用于类型和长度判断
+    void pixmapToByteArray(QByteArray &imageByteArray,
+                           const QPixmap &pixmap);//QPixmap 转 QByteArray，传图片
+    int stringToInt(const QString &string);//QByteArray 转 uint,用于类型和长度判断
     qulonglong stringToQulonglong(const QString &string);//QString 转 qulonglong,用于Id判断
     QString byteArrayToUnicode(const QByteArray &array);
 
@@ -71,8 +72,8 @@ private:
     QString ownName;//用户昵称
 
 signals:
-    void toServerData(qulonglong friendId,const QByteArray &type, const QByteArray &data);//发送给好友数据
-    void toServerUpdata(QString msg);//传给服务器数据信号
+    void toServerData(qulonglong friendId, const QByteArray &data);//发送给好友数据
+    void toServerUpdate(QString msg);//传给服务器数据信号
     void toServerDisconnection(qintptr descriptor, qulonglong id);//传给服务器断开连接信号
     void toServerSuccessful(qulonglong id, qintptr handle);//登录成功信号
 };

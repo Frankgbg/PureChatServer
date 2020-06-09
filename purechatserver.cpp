@@ -13,6 +13,8 @@ PureChatServer::PureChatServer(QWidget *parent) :
     serverSocket = nullptr;
     QDir path;
     path.mkpath("./msg");
+    path.mkpath("./images/persons");
+    path.mkpath("./images/groups");
     setWindowTitle("PureChatServer");
 }
 

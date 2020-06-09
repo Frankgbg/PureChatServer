@@ -8,6 +8,10 @@
 #include <QVariant>
 #include <QFile>
 #include <QTextCodec>
+#include <QPixmap>
+#include <QBuffer>
+#include <QTime>
+#include <QCoreApplication>
 
 const QByteArray successful = "Login successful.";
 const QByteArray failed = "Login failed!";
@@ -26,33 +30,35 @@ const QByteArray signUpFailed = "Sign up failed!";
 const QByteArray createFailed = "Create group failed!";
 const QByteArray complete = "Data transmission completed";
 
-const QByteArray signUpType = "90000";//注册
-const QByteArray loginType = "90001";//登录
-const QByteArray modifyOwnPasswordType = "90002";//修改个人密码
-const QByteArray modifyOwnNameType = "90003";//修改个人昵称
-const QByteArray modifyOwnSignType = "90004";//修改个人签名
-const QByteArray modifyGroupNameType = "90005";//修改群昵称
-const QByteArray searchFriendType = "90006";//查找好友
-const QByteArray addFriendType = "90007";//添加好友
-const QByteArray delFriendType = "90008";//删除好友
-const QByteArray createGroupType = "90009";//创建群聊
-const QByteArray searchGroupType = "90010";//查找群
-const QByteArray addGroupType = "90011";//添加群
-const QByteArray delGroupType = "90012";//删除群
-const QByteArray searchFriendsType = "90013";//查找好友列表
-const QByteArray searchGroupsType = "90014";//查找群列表
-const QByteArray searchFriendsOfGroupType = "90015";//查找群内好友列表
-const QByteArray chatFriendType = "90016";//好友聊天
-const QByteArray chatGroupType = "90017";//群内聊天
+const int signUpType = 9000000;//注册
+const int loginType = 9000001;//登录
+const int modifyOwnPasswordType = 9000002;//修改个人密码
+const int modifyOwnNameType = 9000003;//修改个人昵称
+const int modifyOwnSignType = 9000004;//修改个人签名
+const int modifyGroupNameType = 9000005;//修改群昵称
+const int searchFriendType = 9000006;//查找好友
+const int addFriendType = 9000007;//添加好友
+const int delFriendType = 9000008;//删除好友
+const int createGroupType = 9000009;//创建群聊
+const int searchGroupType = 9000010;//查找群
+const int addGroupType = 9000011;//添加群
+const int delGroupType = 9000012;//删除群
+const int searchFriendsType = 9000013;//查找好友列表
+const int searchGroupsType = 9000014;//查找群列表
+const int searchFriendsOfGroupType = 9000015;//查找群内好友列表
+const int chatFriendType = 9000016;//好友聊天
+const int chatGroupType = 9000017;//群内聊天
+const int modifyOwnImageType = 9000018;//修改个人头像
+const int modifyGroupImageType = 9000019;//修改群头像
 
-const QByteArray unknownType = "99998";//未知类型,数据错误
-const QByteArray endType = "99999";//"包"结束
+const int unknownType = 9999998;//未知类型,数据错误
 
 
 ClientSocket::ClientSocket(const QSqlDatabase &db, QTcpSocket *parent) :
     QTcpSocket(parent)
 {
     ownId = 0;
+    ownName = "";
     dbo = new DatabaseOperator(db);
 
     connect(this,SIGNAL(readyRead()),this,SLOT(receiveData()));
@@ -61,121 +67,10 @@ ClientSocket::ClientSocket(const QSqlDatabase &db, QTcpSocket *parent) :
 
 ClientSocket::~ClientSocket()
 {
-    delete dbo;
+
 }
 
-QByteArray lastRemain;
-QByteArray type;
-ushort where = 0;
-uint length;
-
-void ClientSocket::receiveData()
-{
-    QByteArray byteAll = readAll();
-    byteAll = lastRemain+byteAll;
-    while(true){
-        QByteArray data;
-        switch(where){
-        case 0:{
-            data = readDataLength(5,byteAll);
-            if(data.size() < 5){
-                lastRemain = data;
-                where = 0;
-                return ;
-            }
-            length = byteArrayToUint(data);
-            if(length == 99999u) {
-                where = 0;
-                continue ;
-            }
-            else if(length >= 90000u && length < 99999u) {
-                type = data;
-            }
-            else {
-                sendTips(unknownType,requestFailed);
-                emit toServerUpdata(unknownType+"1");
-                /*考虑缓冲区剩余数据如何操作*/
-                continue ;
-            }
-        }
-        case 1:{
-            data = readDataLength(5,byteAll);
-            if(data.size() < 5){
-                lastRemain = data;
-                where = 1;
-                return ;
-            }
-            length = byteArrayToUint(data);
-
-            if(length == 99999u) {
-                where = 0;
-                continue ;
-            }
-            else if(length == 0u || length >= 90000u) {
-                sendTips(unknownType,requestFailed);
-                emit toServerUpdata(unknownType+"2");
-                /*考虑缓冲区剩余数据如何操作*/
-                continue ;
-            }
-        }
-        case 2:{
-            data = readDataLength(length,byteAll);
-            if(data.size() < (int)length){
-                lastRemain = data;
-                where = 2;
-                return ;
-            }
-            QJsonObject json = QJsonDocument::fromJson(data).object();
-
-            if(type == signUpType) signUp(json);//注册账号
-            else if(type == loginType) loginVerify(json);//登录请求
-            else if(type == modifyOwnPasswordType) modifyOwnPassword(json);//修改个人密码
-            else if(type == modifyOwnNameType) modifyOwnName(json);//修改个人昵称
-            else if(type == modifyOwnSignType) modifyOwnSign(json);//修改个人签名
-            else if(type == modifyGroupNameType) modifyGroupName(json);//修改群昵称
-            else if(type == searchFriendType) searchFriend(json);//查找好友
-            else if(type == addFriendType) addFriend(json);//添加好友
-            else if(type == delFriendType) delFriend(json);//删除好友
-            else if(type == createGroupType) createGroup(json);//创建群聊
-            else if(type == searchGroupType) searchGroup(json);//查找群
-            else if(type == addGroupType) addGroup(json);//添加群
-            else if(type == delGroupType) delGroup(json);//删除群
-            else if(type == searchFriendsType) searchFriends(ownId);//查找好友列表
-            else if(type == searchGroupsType) searchGroups(ownId);//查找群列表
-            else if(type == searchFriendsOfGroupType) searchFriendsOfGroup(json);//查找群内好友列表
-            else if(type == chatFriendType) chatFriend(json);//好友聊天
-            else if(type == chatGroupType) chatGroup(json);//群内聊天
-            else {
-                sendTips(unknownType,requestFailed);
-                emit toServerUpdata(unknownType+"3");
-                /*考虑缓冲区剩余数据如何操作*/
-            }
-            break;
-        }
-        default:break;
-        }
-    }
-}
-
-void ClientSocket::disconnection()
-{
-    if(ownId != 0) dbo->logout(ownId);
-    emit toServerDisconnection(this->socketDescriptor(),ownId);
-}
-
-qulonglong ClientSocket::getId()
-{
-    return ownId;
-}
-
-void ClientSocket::send(const QByteArray &type, const QByteArray &data)
-{
-    sendType(type);
-    sendData(data);
-    sendType(endType);
-}
-
-QByteArray ClientSocket::readDataLength(uint dataLength, QByteArray &data)
+QByteArray ClientSocket::readDataLength(QByteArray &data, uint dataLength)
 {
     QByteArray rec;
     if(data.size() <= (int)dataLength){
@@ -190,31 +85,117 @@ QByteArray ClientSocket::readDataLength(uint dataLength, QByteArray &data)
     return rec;
 }
 
-void ClientSocket::sendType(const QByteArray &type)
+QByteArray lastRemain;
+QByteArray type;
+ushort where = 0;
+uint length;
+
+void ClientSocket::receiveData()
 {
-    write(type,5);
+    QByteArray byteAll = readAll();
+    byteAll = lastRemain+byteAll;
+
+    while(byteAll.size() > 0){
+        QByteArray data;
+        switch(where){
+        case 0:{
+            data = readDataLength(byteAll,7);
+            if(data.size() < 7){
+                lastRemain = data;
+                where = 0;
+                return ;
+            }
+            lastRemain.clear();
+            where = 0;
+            length = stringToInt(data);
+            if(length == 0) {
+                where = 0;
+                continue ;
+            }
+        }
+        case 1:{
+            data = readDataLength(byteAll,length);
+            if(data.size() < (int)length){
+                lastRemain = data;
+                where = 1;
+                return ;
+            }
+            lastRemain.clear();
+            where = 0;
+
+            QJsonObject json = QJsonDocument::fromJson(data).object();
+            int type = stringToInt(json.value("type").toString());
+            if(type == 0) continue;
+
+            switch(type){
+            case signUpType: signUp(json);break;//注册账号
+            case loginType: loginVerify(json);break;//登录请求
+            case modifyOwnPasswordType: modifyOwnPassword(json);break;//修改个人密码
+            case modifyOwnNameType: modifyOwnName(json);break;//修改个人昵称
+            case modifyOwnSignType: modifyOwnSign(json);break;//修改个人签名
+            case modifyGroupNameType: modifyGroupName(json);break;//修改群昵称
+            case searchFriendType: searchFriend(json);break;//查找好友
+            case addFriendType: addFriend(json);break;//添加好友
+            case delFriendType: delFriend(json);break;//删除好友
+            case createGroupType: createGroup(json);break;//创建群聊
+            case searchGroupType: searchGroup(json);break;//查找群
+            case addGroupType: addGroup(json);break;//添加群
+            case delGroupType: delGroup(json);break;//删除群
+            case searchFriendsType: searchFriends(ownId);break;//查找好友列表
+            case searchGroupsType: searchGroups(ownId);break;//查找群列表
+            case searchFriendsOfGroupType: searchFriendsOfGroup(json);break;//查找群内好友列表
+            case chatFriendType: chatFriend(json);break;//好友聊天
+            case chatGroupType: chatGroup(json);break;//群内聊天
+            case modifyOwnImageType: modifyOwnImage(json);break;//修改个人头像
+            case modifyGroupImageType: modifyGroupImage(json);break;//修改群头像
+            default:{
+                QJsonObject json;
+                json.insert("type",QString::number(unknownType));
+                QByteArray data = QJsonDocument(json).toJson();
+                sendData(data);
+                break;
+            }
+            }
+        }
+        default:break;
+        }
+    }
+}
+
+void ClientSocket::disconnection()
+{
+    if(ownId != 0) dbo->logout(ownId);
+    delete dbo;
+    emit toServerDisconnection(this->socketDescriptor(),ownId);
+}
+
+qulonglong ClientSocket::getId()
+{
+    return ownId;
+}
+
+void sleep(unsigned int msec){
+    QTime reachTime = QTime::currentTime().addMSecs(msec);
+    while(QTime::currentTime() < reachTime){
+        QCoreApplication::processEvents(QEventLoop::AllEvents,msec);
+    }
 }
 
 void ClientSocket::sendData(const QByteArray &data)
 {
     QString len = QString::number(data.size());
-    len = QString(5-len.size(),'0')+len;
-    write(len.toLocal8Bit(),5);
-    write(data);
+    len = QString(7-len.size(),'0')+len;
+    write(len.toLocal8Bit(),7);
+    if(data.size() > 0) write(data,data.size());
 }
 
-void ClientSocket::sendData(const QByteArray &type, const QJsonObject &json)
-{
-    QByteArray data = QJsonDocument(json).toJson();
-    send(type,data);
-}
-
-void ClientSocket::sendTips(const QByteArray &type, const QByteArray &data)
+void ClientSocket::sendTips(int type, const QByteArray &data)
 {
     QJsonObject json;
+    json.insert("type",QString::number(type));
     json.insert("information",QString::fromLatin1(data));
-    QByteArray data1 = QJsonDocument(json).toJson();
-    send(type,data1);
+    QByteArray data2 = QJsonDocument(json).toJson();
+    sendData(data2);
 }
 
 void ClientSocket::signUp(const QJsonObject &json)
@@ -225,14 +206,16 @@ void ClientSocket::signUp(const QJsonObject &json)
     bool isSuccessful = dbo->signUp(ownName,ownPassword,ownId);
     if(!isSuccessful){//注册失败
         sendTips(signUpType,requestFailed);
-        emit toServerUpdata("类型:"+signUpType+"  "+requestFailed);
+        emit toServerUpdate("类型:"+QString::number(signUpType)+"  "+requestFailed);
         close();
         return ;
     }
-    QJsonObject json1;
-    json1.insert("ownId",QString::number(ownId));
-    sendData(signUpType,json1);//发送注册到的账号
-    emit toServerUpdata("类型:"+signUpType+"  "+complete);
+    QJsonObject json2;
+    json2.insert("type",QString::number(signUpType));
+    json2.insert("ownId",QString::number(ownId));
+    QByteArray data = QJsonDocument(json2).toJson();
+    sendData(data);//发送注册到的账号
+    emit toServerUpdate("类型:"+QString::number(signUpType)+"  "+complete);
     close();
 }
 
@@ -242,7 +225,7 @@ void ClientSocket::loginVerify(const QJsonObject &json)
     QString password = json.value("ownPassword").toString();
     if(id == 0){
         sendTips(loginType,numberError);
-        emit toServerUpdata("类型:"+loginType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(loginType)+"  "+numberError);
         close();
         return ;
     }
@@ -250,7 +233,7 @@ void ClientSocket::loginVerify(const QJsonObject &json)
     QString name;
     bool isSuccess = dbo->loginVerify(id,password,peerAddress().toString(),information,name);
     sendTips(loginType,information);//发送尝试登录返回信息
-    emit toServerUpdata("类型:"+loginType+"  "+information);
+    emit toServerUpdate("类型:"+QString::number(loginType)+"  "+information);
     if(!isSuccess) {
         ownId = 0;
         ownName = "";
@@ -263,7 +246,7 @@ void ClientSocket::loginVerify(const QJsonObject &json)
     searchFriends(ownId);//发送好友列表信息
     searchGroups(ownId);//发送群列表信息
 
-    sendOfflineMsg(ownId);
+    sendOfflineMsg(ownId);//发送离线消息
 }
 
 void ClientSocket::modifyOwnPassword(const QJsonObject &json)
@@ -273,11 +256,11 @@ void ClientSocket::modifyOwnPassword(const QJsonObject &json)
     bool isSuccessful = dbo->modifyOwnPassword(ownId,oldPassword,newPassword);
     if(!isSuccessful){
         sendTips(modifyOwnPasswordType,requestFailed);
-        emit toServerUpdata("类型:"+modifyOwnPasswordType+"  "+requestFailed);
+        emit toServerUpdate("类型:"+QString::number(modifyOwnPasswordType)+"  "+requestFailed);
         return ;
     }
     sendTips(modifyOwnPasswordType,requestSuccessful);
-    emit toServerUpdata("类型:"+modifyOwnPasswordType+"  "+requestSuccessful);
+    emit toServerUpdate("类型:"+QString::number(modifyOwnPasswordType)+"  "+requestSuccessful);
 }
 
 void ClientSocket::modifyOwnName(const QJsonObject &json)
@@ -286,12 +269,12 @@ void ClientSocket::modifyOwnName(const QJsonObject &json)
     bool isSuccessful = dbo->modifyOwnName(ownId,newName);
     if(!isSuccessful){
         sendTips(modifyOwnNameType,requestFailed);
-        emit toServerUpdata("类型:"+modifyOwnNameType+"  "+requestFailed);
+        emit toServerUpdate("类型:"+QString::number(modifyOwnNameType)+"  "+requestFailed);
         return ;
     }
     ownName = newName;
     sendTips(modifyOwnNameType,requestSuccessful);
-    emit toServerUpdata("类型:"+modifyOwnNameType+"  "+requestSuccessful);
+    emit toServerUpdate("类型:"+QString::number(modifyOwnNameType)+"  "+requestSuccessful);
 }
 
 void ClientSocket::modifyOwnSign(const QJsonObject &json)
@@ -300,11 +283,35 @@ void ClientSocket::modifyOwnSign(const QJsonObject &json)
     bool isSuccessful = dbo->modifyOwnSign(ownId,newSign);
     if(!isSuccessful){
         sendTips(modifyOwnSignType,requestFailed);
-        emit toServerUpdata("类型:"+modifyOwnSignType+"  "+requestFailed);
+        emit toServerUpdate("类型:"+QString::number(modifyOwnSignType)+"  "+requestFailed);
         return ;
     }
     sendTips(modifyOwnSignType,requestSuccessful);
-    emit toServerUpdata("类型:"+modifyOwnSignType+"  "+requestSuccessful);
+    emit toServerUpdate("类型:"+QString::number(modifyOwnSignType)+"  "+requestSuccessful);
+}
+
+void ClientSocket::modifyOwnImage(const QJsonObject &json)
+{
+    QByteArray newImage = json.value("newImage").toString().toLatin1();
+    QString imageType = json.value("imageType").toString();
+    QPixmap image;
+    image.loadFromData(newImage);
+    QString filePath = "./images/persons/"+QString::number(ownId)+".jpg";
+    QPixmap oldImage(filePath);
+    if(!oldImage.isNull()){
+        QFile::remove(filePath);
+    }
+    bool isSuccessful = image.save("./images/persons/"+QString::number(ownId)+"."+imageType);
+    if(!isSuccessful){
+        if(!oldImage.isNull()){
+            oldImage.save(filePath);
+        }
+        sendTips(modifyOwnImageType,requestFailed);
+        emit toServerUpdate("类型:"+QString::number(modifyOwnImageType)+"  "+requestFailed);
+        return ;
+    }
+    sendTips(modifyOwnImageType,requestSuccessful);
+    emit toServerUpdate("类型:"+QString::number(modifyOwnImageType)+"  "+requestSuccessful);
 }
 
 void ClientSocket::modifyGroupName(const QJsonObject &json)
@@ -313,32 +320,81 @@ void ClientSocket::modifyGroupName(const QJsonObject &json)
     qulonglong groupId = stringToQulonglong(json.value("groupId").toString());
     if(groupId == 0){
         sendTips(modifyGroupNameType,numberError);
-        emit toServerUpdata("类型:"+modifyGroupNameType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(modifyGroupNameType)+"  "+numberError);
         return ;
     }
     bool isSuccessful = dbo->modifyGroupName(groupId,newName);
     if(!isSuccessful){
         sendTips(modifyGroupNameType,requestFailed);
-        emit toServerUpdata("类型:"+modifyGroupNameType+"  "+requestFailed);
+        emit toServerUpdate("类型:"+QString::number(modifyGroupNameType)+"  "+requestFailed);
         return ;
     }
-    emit toServerUpdata("类型:"+modifyGroupNameType+"  "+requestSuccessful);
+    emit toServerUpdate("类型:"+QString::number(modifyGroupNameType)+"  "+requestSuccessful);
     QSqlQuery *query = dbo->searchFriendsOfGroup(groupId);
     if(query == nullptr){
         sendTips(modifyGroupNameType,unknownError);
-        emit toServerUpdata("类型:"+modifyGroupNameType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(modifyGroupNameType)+"  "+unknownError);
         return ;
     }
     QJsonObject json2;
+    json2.insert("type",QString::number(modifyGroupNameType));
     json2.insert("groupId",QString::number(groupId));
     json2.insert("groupName",newName);
     QByteArray data = QJsonDocument(json2).toJson();
     while(query->next()){
         if(query->value(2).toBool()){//好友在线,在线消息
-            emit toServerData(query->value(0).toULongLong(),modifyGroupNameType,data);
+            emit toServerData(query->value(0).toULongLong(),data);
         }
     }
-    emit toServerUpdata("类型:"+modifyGroupNameType+"  "+complete);
+    emit toServerUpdate("类型:"+QString::number(modifyGroupNameType)+"  "+complete);
+    delete query;
+}
+
+void ClientSocket::modifyGroupImage(const QJsonObject &json)
+{
+    QByteArray newImage = json.value("newImage").toString().toLatin1();
+    QString imageType = json.value("imageType").toString();
+    qulonglong groupId = stringToQulonglong(json.value("groupId").toString());
+    if(groupId == 0){
+        sendTips(modifyGroupImageType,numberError);
+        emit toServerUpdate("类型:"+QString::number(modifyGroupImageType)+"  "+numberError);
+        return ;
+    }
+    QPixmap image;
+    image.loadFromData(newImage);
+    QString filePath = "./images/groups/"+QString::number(groupId)+".jpg";
+    QPixmap oldImage(filePath);
+    if(!oldImage.isNull()){
+        QFile::remove(filePath);
+    }
+    bool isSuccessful = image.save("./images/groups/"+QString::number(groupId)+"."+imageType);
+    if(!isSuccessful){
+        if(!oldImage.isNull()){
+            oldImage.save(filePath);
+        }
+        sendTips(modifyGroupImageType,requestFailed);
+        emit toServerUpdate("类型:"+QString::number(modifyGroupImageType)+"  "+requestFailed);
+        return ;
+    }
+    emit toServerUpdate("类型:"+QString::number(modifyGroupImageType)+"  "+requestSuccessful);
+
+    QSqlQuery *query = dbo->searchFriendsOfGroup(groupId);
+    if(query == nullptr){
+        sendTips(modifyGroupImageType,unknownError);
+        emit toServerUpdate("类型:"+QString::number(modifyGroupImageType)+"  "+unknownError);
+        return ;
+    }
+    QJsonObject json2;
+    json2.insert("type",QString::number(modifyGroupImageType));
+    json2.insert("groupId",QString::number(groupId));
+    json2.insert("groupImage",QString::fromLatin1(newImage,newImage.size()));
+    QByteArray data = QJsonDocument(json2).toJson();
+    while(query->next()){
+        if(query->value(2).toBool()){//好友在线,在线消息
+            emit toServerData(query->value(0).toULongLong(),data);
+        }
+    }
+    emit toServerUpdate("类型:"+QString::number(modifyGroupImageType)+"  "+complete);
     delete query;
 }
 
@@ -347,28 +403,29 @@ void ClientSocket::searchFriend(const QJsonObject &json)
     qulonglong friendId = stringToQulonglong(json.value("friendId").toString());
     if(friendId == 0){
         sendTips(searchFriendType,numberError);
-        emit toServerUpdata("类型:"+searchFriendType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(searchFriendType)+"  "+numberError);
         return ;
     }
     QSqlQuery *query = dbo->searchFriend(friendId);
     if(query == nullptr){
         sendTips(searchFriendType,unknownError);
-        emit toServerUpdata("类型:"+searchFriendType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(searchFriendType)+"  "+unknownError);
         return ;
     }
     if(!query->record().isEmpty()){
         if(query->next()){//发送好友信息
-            sendFriend(searchFriendType,query->value(0).toULongLong(),query->value(1).toString(),query->value(2).toString());
-            emit toServerUpdata("类型:"+searchFriendType+"  "+complete);
+            QPixmap pixmap("./images/persons/"+QString::number(friendId)+".jpg");
+            sendFriend(searchFriendType,query->value(0).toULongLong(),query->value(1).toString(),query->value(2).toString(),pixmap);
+            emit toServerUpdate("类型:"+QString::number(searchFriendType)+"  "+complete);
         }
         else{
             sendTips(searchFriendType,notExist);
-            emit toServerUpdata("类型:"+searchFriendType+"  "+notExist);
+            emit toServerUpdate("类型:"+QString::number(searchFriendType)+"  "+notExist);
         }
     }
     else{//账号不存在
         sendTips(searchFriendType,notExist);
-        emit toServerUpdata("类型:"+searchFriendType+"  "+notExist);
+        emit toServerUpdate("类型:"+QString::number(searchFriendType)+"  "+notExist);
     }
     delete query;
 }
@@ -379,19 +436,19 @@ void ClientSocket::addFriend(const QJsonObject &json)
     qulonglong friendId = stringToQulonglong(json.value("friendId").toString());
     if(requestId == 0 || friendId == 0){
         sendTips(addFriendType,numberError);
-        emit toServerUpdata("类型:"+addFriendType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(addFriendType)+"  "+numberError);
         return ;
     }
     if(requestId != ownId){//离线,由接收方同意加好友
         QSqlQuery *query = dbo->searchFriend(requestId);
         if(query == nullptr){
             sendTips(addFriendType,unknownError);
-            emit toServerUpdata("类型:"+addFriendType+"  "+unknownError);
+            emit toServerUpdate("类型:"+QString::number(addFriendType)+"  "+unknownError);
             return ;
         }
         if(query->record().isEmpty()){//申请加好友者账号注销,不存在
             sendTips(addFriendType,notExist);
-            emit toServerUpdata("类型:"+addFriendType+"  "+notExist);
+            emit toServerUpdate("类型:"+QString::number(addFriendType)+"  "+notExist);
         }
         else{
             /*
@@ -407,32 +464,54 @@ void ClientSocket::addFriend(const QJsonObject &json)
     if(!isSuccessful){//添加失败
         if(information == friendExist){//已是好友关系
             sendTips(addFriendType,friendExist);
-            emit toServerUpdata("类型:"+addFriendType+"  "+friendExist);
+            emit toServerUpdate("类型:"+QString::number(addFriendType)+"  "+friendExist);
             return ;
         }
         sendTips(addFriendType,unknownError);
-        emit toServerUpdata("类型:"+addFriendType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(addFriendType)+"  "+unknownError);
         return ;
     }
     QSqlQuery *query = dbo->searchFriend(friendId);
+    if(query == nullptr){
+        sendTips(addFriendType,unknownError);
+        emit toServerUpdate("类型:"+QString::number(addFriendType)+"  "+unknownError);
+        return ;
+    }
     if(query->next()){
         //发送好友信息
-        sendFriend(addFriendType,query->value(0).toULongLong(),query->value(1).toString(),query->value(2).toString());
-        emit toServerUpdata("类型:"+addFriendType+"  "+complete);
+        QPixmap pixmap("./images/persons/"+QString::number(friendId)+".jpg");
+        sendFriend(addFriendType,query->value(0).toULongLong(),query->value(1).toString(),query->value(2).toString(),pixmap);
+        emit toServerUpdate("类型:"+QString::number(addFriendType)+"  "+complete);
         if(query->value(3).toBool()){//对方在线,及时给对方更新好友信息
+            delete query;
+            query = nullptr;
             QSqlQuery *query2 = dbo->searchFriend(ownId);
+            if(query2 == nullptr){
+                sendTips(addFriendType,unknownError);
+                emit toServerUpdate("类型:"+QString::number(addFriendType)+"  "+unknownError);
+                return ;
+            }
             if(query2->next()){
+                QPixmap pixmap("./images/persons/"+QString::number(ownId)+".jpg");
+                QByteArray image;
+                pixmapToByteArray(image,pixmap);
+
                 QJsonObject json2;
+                json2.insert("type",QString::number(addFriendType));
                 json2.insert("friendId",QString::number(ownId));
                 json2.insert("friendName",query2->value(1).toString());
                 json2.insert("friendSign",query2->value(2).toString());
+                json2.insert("friendImage",QString::fromLatin1(image,image.size()));
                 QByteArray data = QJsonDocument(json2).toJson();
-                emit toServerData(friendId,addFriendType,data);
+                emit toServerData(friendId,data);
             }
             delete query2;
         }
     }
-    delete query;
+    if(query != nullptr){
+    	delete query;
+        query = nullptr;
+    }
 }
 
 void ClientSocket::delFriend(const QJsonObject &json)
@@ -440,27 +519,30 @@ void ClientSocket::delFriend(const QJsonObject &json)
     qulonglong friendId = stringToQulonglong(json.value("friendId").toString());
     if(friendId == 0){
         sendTips(delFriendType,numberError);
-        emit toServerUpdata("类型:"+delFriendType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(delFriendType)+"  "+numberError);
         return ;
     }
     bool isSuccessful = dbo->delFriend(ownId,friendId);
     if(!isSuccessful){//删除失败
         sendTips(delFriendType,unknownError);
-        emit toServerUpdata("类型:"+delFriendType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(delFriendType)+"  "+unknownError);
         return ;
     }
     QJsonObject json2;
+    json2.insert("type",QString::number(delFriendType));
     json2.insert("friendId",QString::number(friendId));
-    sendData(delFriendType,json2);
-    emit toServerUpdata("类型:"+delFriendType+"  "+complete);
+    QByteArray data = QJsonDocument(json2).toJson();
+    sendData(data);
+    emit toServerUpdate("类型:"+QString::number(delFriendType)+"  "+complete);
     QSqlQuery *query = dbo->searchFriend(friendId);
     if(!query->record().isEmpty()){
         if(query->next()){
             if(query->value(3).toBool()){//对方在线,及时更新好友信息
                 QJsonObject json3;
+                json3.insert("type",QString::number(delFriendType));
                 json3.insert("friendId",QString::number(ownId));
                 QByteArray data = QJsonDocument(json3).toJson();
-                emit toServerData(friendId,delFriendType,data);
+                emit toServerData(friendId,data);
             }
         }
     }
@@ -474,14 +556,11 @@ void ClientSocket::createGroup(const QJsonObject &json)
     bool isSuccessful = dbo->createGroup(ownId,groupName,groupId);
     if(!isSuccessful){//创建失败
         sendTips(createGroupType,requestFailed);
-        emit toServerUpdata("类型:"+createGroupType+"  "+requestFailed);
+        emit toServerUpdate("类型:"+QString::number(createGroupType)+"  "+requestFailed);
         return ;
     }
-    QJsonObject json2;
-    json2.insert("groupId",QString::number(groupId));
-    json2.insert("groupName",groupName);
-    sendData(createGroupType,json2);
-    emit toServerUpdata("类型:"+createGroupType+"  "+complete);
+    sendGroup(createGroupType,groupId,groupName,QPixmap());
+    emit toServerUpdate("类型:"+QString::number(createGroupType)+"  "+complete);
 }
 
 void ClientSocket::searchGroup(const QJsonObject &json)
@@ -489,28 +568,29 @@ void ClientSocket::searchGroup(const QJsonObject &json)
     qulonglong groupId = stringToQulonglong(json.value("groupId").toString());
     if(groupId == 0){
         sendTips(searchGroupType,numberError);
-        emit toServerUpdata("类型:"+searchGroupType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(searchGroupType)+"  "+numberError);
         return ;
     }
     QSqlQuery *query = dbo->searchGroup(groupId);
     if(query == nullptr){
         sendTips(searchGroupType,unknownError);
-        emit toServerUpdata("类型:"+searchGroupType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(searchGroupType)+"  "+unknownError);
         return ;
     }
     if(!query->record().isEmpty()){
         if(query->next()){//发送群信息
-            sendGroup(searchGroupType,query->value(0).toULongLong(),query->value(1).toString());
-            emit toServerUpdata("类型:"+searchGroupType+"  "+complete);
+            QPixmap pixmap("./images/groups/"+QString::number(groupId)+".jpg");
+            sendGroup(searchGroupType,query->value(0).toULongLong(),query->value(1).toString(),pixmap);
+            emit toServerUpdate("类型:"+QString::number(searchGroupType)+"  "+complete);
         }
         else{
             sendTips(searchGroupType,notExist);
-            emit toServerUpdata("类型:"+searchGroupType+"  "+notExist);
+            emit toServerUpdate("类型:"+QString::number(searchGroupType)+"  "+notExist);
         }
     }
     else{//群不存在
         sendTips(searchGroupType,notExist);
-        emit toServerUpdata("类型:"+searchGroupType+"  "+notExist);
+        emit toServerUpdate("类型:"+QString::number(searchGroupType)+"  "+notExist);
     }
     delete query;
 }
@@ -521,19 +601,19 @@ void ClientSocket::addGroup(const QJsonObject &json)
     qulonglong groupId = stringToQulonglong(json.value("groupId").toString());
     if(requestId == 0 || groupId == 0){
         sendTips(addGroupType,numberError);
-        emit toServerUpdata("类型:"+addGroupType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(addGroupType)+"  "+numberError);
         return ;
     }
     if(requestId != ownId){//离线,由群内人员同意加群
         QSqlQuery *query = dbo->searchFriend(requestId);
         if(query == nullptr){
             sendTips(addGroupType,unknownError);
-            emit toServerUpdata("类型:"+addGroupType+"  "+unknownError);
+            emit toServerUpdate("类型:"+QString::number(addGroupType)+"  "+unknownError);
             return ;
         }
         if(query->record().isEmpty()){//申请加群者账号注销,不存在
             sendTips(addGroupType,notExist);
-            emit toServerUpdata("类型:"+addGroupType+"  "+notExist);
+            emit toServerUpdate("类型:"+QString::number(addGroupType)+"  "+notExist);
         }
         else{
             /*
@@ -549,18 +629,19 @@ void ClientSocket::addGroup(const QJsonObject &json)
     if(!isSuccessful){//加群失败
         if(information == groupExist){//已在群中
             sendTips(addGroupType,groupExist);
-            emit toServerUpdata("类型:"+addGroupType+"  "+groupExist);
+            emit toServerUpdate("类型:"+QString::number(addGroupType)+"  "+groupExist);
             return ;
         }
         sendTips(addGroupType,unknownError);
-        emit toServerUpdata("类型:"+addGroupType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(addGroupType)+"  "+unknownError);
         return ;
     }
     QSqlQuery *query = dbo->searchGroup(groupId);
     if(query->next()){
         //发送群信息
-        sendGroup(addGroupType,query->value(0).toULongLong(),query->value(1).toString());
-        emit toServerUpdata("类型:"+addGroupType+"  "+complete);
+        QPixmap pixmap("./images/groups/"+QString::number(groupId)+".jpg");
+        sendGroup(addGroupType,query->value(0).toULongLong(),query->value(1).toString(),pixmap);
+        emit toServerUpdate("类型:"+QString::number(addGroupType)+"  "+complete);
         /*
          * 未及时更新给其他群内人员.如果其他群内人员已打开聊天窗口,刚进来的好友可以接收消息,未显示此好友
          */
@@ -573,23 +654,24 @@ void ClientSocket::delGroup(const QJsonObject &json)
     qulonglong groupId = stringToQulonglong(json.value("groupId").toString());
     if(groupId == 0){
         sendTips(delGroupType,numberError);
-        emit toServerUpdata("类型:"+delGroupType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(delGroupType)+"  "+numberError);
         return ;
     }
     bool isSuccessful = dbo->delGroup(ownId,groupId);
-    if(isSuccessful){//删除群成功
-        QJsonObject json1;
-        json1.insert("groupId",QString::number(groupId));
-        sendData(delGroupType,json1);
-        emit toServerUpdata("类型:"+delGroupType+"  "+complete);
-        /*
-         * 未及时更新给其他群内人员.如果其他群内人员已打开聊天窗口,刚退出的好友不可接收消息,但显示此好友
-         */
-    }
-    else{//删除群失败
+    if(!isSuccessful){//删除群失败
         sendTips(delGroupType,unknownError);
-        emit toServerUpdata("类型:"+delGroupType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(delGroupType)+"  "+unknownError);
+        return ;
     }
+    QJsonObject json2;
+    json2.insert("type",QString::number(delGroupType));
+    json2.insert("groupId",QString::number(groupId));
+    QByteArray data = QJsonDocument(json2).toJson();
+    sendData(data);
+    emit toServerUpdate("类型:"+QString::number(delGroupType)+"  "+complete);
+    /*
+     * 未及时更新给其他群内人员.如果其他群内人员已打开聊天窗口,刚退出的好友不可接收消息,但显示此好友
+     */
 }
 
 void ClientSocket::searchFriends(qulonglong ownId)
@@ -597,13 +679,15 @@ void ClientSocket::searchFriends(qulonglong ownId)
     QSqlQuery *query = dbo->searchFriends(ownId);
     if(query == nullptr){
         sendTips(searchFriendsType,unknownError);
-        emit toServerUpdata("类型:"+searchFriendsType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(searchFriendsType)+"  "+unknownError);
         return ;
     }
     while(query->next()){//至少有一个自己
-        sendFriend(searchFriendsType,query->value(0).toULongLong(),query->value(1).toString(),query->value(2).toString());
+        QPixmap pixmap("./images/persons/"+query->value(0).toString()+".jpg");
+        qDebug()<<pixmap.isNull();
+        sendFriend(searchFriendsType,query->value(0).toULongLong(),query->value(1).toString(),query->value(2).toString(),pixmap);
     }
-    emit toServerUpdata("类型:"+searchFriendsType+"  "+complete);
+    emit toServerUpdate("类型:"+QString::number(searchFriendsType)+"  "+complete);
     delete query;
 }
 
@@ -612,14 +696,15 @@ void ClientSocket::searchGroups(qulonglong ownId)
     QSqlQuery *query = dbo->searchGroups(ownId);
     if(query == nullptr){
         sendTips(searchGroupsType,unknownError);
-        emit toServerUpdata("类型:"+searchGroupsType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(searchGroupsType)+"  "+unknownError);
         return ;
     }
     if(!query->record().isEmpty()){
         while(query->next()){
-            sendGroup(searchGroupsType,query->value(0).toULongLong(),query->value(1).toString());
+            QPixmap pixmap("./images/groups/"+query->value(0).toString()+".jpg");
+            sendGroup(searchGroupsType,query->value(0).toULongLong(),query->value(1).toString(),pixmap);
         }
-        emit toServerUpdata("类型:"+searchGroupsType+"  "+complete);
+        emit toServerUpdate("类型:"+QString::number(searchGroupsType)+"  "+complete);
     }
     delete query;
 }
@@ -629,7 +714,7 @@ void ClientSocket::searchFriendsOfGroup(const QJsonObject &json)
     qulonglong groupId = stringToQulonglong(json.value("groupId").toString());
     if(groupId == 0){
         sendTips(searchFriendsOfGroupType,numberError);
-        emit toServerUpdata("类型:"+searchFriendsOfGroupType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(searchFriendsOfGroupType)+"  "+numberError);
         return ;
     }
     searchFriendsOfGroup(groupId);
@@ -640,17 +725,23 @@ void ClientSocket::searchFriendsOfGroup(qulonglong groupId)
     QSqlQuery *query = dbo->searchFriendsOfGroup(groupId);
     if(query == nullptr){
         sendTips(searchFriendsOfGroupType,unknownError);
-        emit toServerUpdata("类型:"+searchFriendsOfGroupType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(searchFriendsOfGroupType)+"  "+unknownError);
     }
-    while(query->next()){//群内至少有一人
+    while(query->next()){//群内至少有一人,由数据库控制群内无人解散群
+        QPixmap pixmap("./images/persons/"+query->value(0).toString()+".jpg");
+        QByteArray image;
+        pixmapToByteArray(image,pixmap);
         QJsonObject json;
+        json.insert("type",QString::number(searchFriendsOfGroupType));
         json.insert("friendId",QString::number(query->value(0).toULongLong()));
         json.insert("friendName",query->value(1).toString());
         json.insert("friendSign",query->value(2).toString());
+        json.insert("friendImage",QString::fromLatin1(image,image.size()));
         json.insert("groupId",QString::number(groupId));
-        sendData(searchFriendsOfGroupType,json);
+        QByteArray data = QJsonDocument(json).toJson();
+        sendData(data);
     }
-    emit toServerUpdata("类型:"+searchFriendsOfGroupType+"  "+complete);
+    emit toServerUpdate("类型:"+QString::number(searchFriendsOfGroupType)+"  "+complete);
     delete query;
 }
 
@@ -659,33 +750,34 @@ void ClientSocket::chatFriend(const QJsonObject &json)
     qulonglong friendId = stringToQulonglong(json.value("friendId").toString());
     if(friendId == 0){
         sendTips(chatFriendType,numberError);
-        emit toServerUpdata("类型:"+chatFriendType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(chatFriendType)+"  "+numberError);
         return ;
     }
     QSqlQuery *query = dbo->searchFriend(friendId);
     if(query == nullptr){
         sendTips(chatFriendType,unknownError);
-        emit toServerUpdata("类型:"+chatFriendType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(chatFriendType)+"  "+unknownError);
         return ;
     }
     QJsonObject json2;
+    json2.insert("type",QString::number(chatFriendType));
     json2.insert("msg",json.value("msg").toString());
     json2.insert("sendId",QString::number(ownId));
     json2.insert("sendName",ownName);
     QByteArray data = QJsonDocument(json2).toJson();
     if(query->next()){
         if(query->value(3).toBool()){//好友在线,在线消息
-            emit toServerData(friendId,chatFriendType,data);
-            emit toServerUpdata("类型:"+chatFriendType+"  对方在线,发送完成.");
+            emit toServerData(friendId,data);
+            emit toServerUpdate("类型:"+QString::number(chatFriendType)+"  对方在线,发送完成.");
         }
         else{
             QString fileName = "./msg/"+QString::number(friendId)+".txt";
             QFile file(fileName);
             file.open(QIODevice::Append);
-            file.write(chatFriendType+'\n'+QString::number(data.size()).toLocal8Bit()+'\n');
+            file.write(QString::number(data.size()).toLocal8Bit()+'\n');
             file.write(QString(data).toUtf8());
             file.close();
-            emit toServerUpdata("类型:"+chatFriendType+"  对方不在线,已保存.");
+            emit toServerUpdate("类型:"+QString::number(chatFriendType)+"  对方不在线,已保存.");
         }
     }
     delete query;
@@ -697,16 +789,17 @@ void ClientSocket::chatGroup(const QJsonObject &json)
     QString groupName = json.value("groupName").toString();
     if(groupId == 0){
         sendTips(chatGroupType,numberError);
-        emit toServerUpdata("类型:"+chatGroupType+"  "+numberError);
+        emit toServerUpdate("类型:"+QString::number(chatGroupType)+"  "+numberError);
         return ;
     }
     QSqlQuery *query = dbo->searchFriendsOfGroup(groupId);
     if(query == nullptr){
         sendTips(chatGroupType,unknownError);
-        emit toServerUpdata("类型:"+chatGroupType+"  "+unknownError);
+        emit toServerUpdate("类型:"+QString::number(chatGroupType)+"  "+unknownError);
         return ;
     }
     QJsonObject json2;
+    json2.insert("type",QString::number(chatGroupType));
     json2.insert("msg",json.value("msg").toString());
     json2.insert("sendId",QString::number(ownId));
     json2.insert("sendName",ownName);
@@ -716,80 +809,107 @@ void ClientSocket::chatGroup(const QJsonObject &json)
     while(query->next()){
         if(query->value(0).toULongLong() == ownId) continue;//不发给自己
         if(query->value(2).toBool()){//好友在线,在线消息
-            emit toServerData(query->value(0).toULongLong(),chatGroupType,data);
-            emit toServerUpdata("类型:"+chatGroupType+"  群成员:"+query->value(0).toString()+"在线,发送完成.");
+            emit toServerData(query->value(0).toULongLong(),data);
+            emit toServerUpdate("类型:"+QString::number(chatGroupType)+"  群成员:"+query->value(0).toString()+"在线,发送完成.");
         }
         else{
             QString fileName = "./msg/"+query->value(0).toString()+".txt";
             QFile file(fileName);
             file.open(QIODevice::Append);
-            file.write(chatGroupType+'\n'+QString::number(data.size()).toLocal8Bit()+'\n');
+            file.write(QString::number(data.size()).toLocal8Bit()+'\n');
             file.write(QString(data).toUtf8());
             file.close();
-            emit toServerUpdata("类型:"+chatGroupType+"  群成员:"+query->value(0).toString()+"不在线,已保存.");
+            emit toServerUpdate("类型:"+QString::number(chatGroupType)+"  群成员:"+query->value(0).toString()+"不在线,已保存.");
         }
     }
     delete query;
 }
 
-void ClientSocket::sendFriend(const QByteArray &type, const qulonglong &friendId, const QString &friendName, const QString &friendSign)
+void ClientSocket::sendFriend(int type, const qulonglong &friendId,
+                              const QString &friendName, const QString &friendSign,
+                              const QPixmap &friendImage)
 {
+    QByteArray image;
+    pixmapToByteArray(image,friendImage);
+
     QJsonObject json;
+    json.insert("type",QString::number(type));
     json.insert("friendId",QString::number(friendId));
     json.insert("friendName",friendName);
     json.insert("friendSign",friendSign);
-    sendData(type,json);
+    json.insert("friendImage",QString::fromLatin1(image,image.size()));
+    QByteArray data = QJsonDocument(json).toJson();
+    sendData(data);
 }
 
-void ClientSocket::sendGroup(const QByteArray &type, const qulonglong &groupId, const QString &groupName)
+void ClientSocket::sendGroup(int type, const qulonglong &groupId,
+                             const QString &groupName, const QPixmap &groupImage)
 {
+    QByteArray image;
+    pixmapToByteArray(image,groupImage);
+
     QJsonObject json;
+    json.insert("type",QString::number(type));
     json.insert("groupId",QString::number(groupId));
     json.insert("groupName",groupName);
-    sendData(type,json);
+    json.insert("groupImage",QString::fromLatin1(image,image.size()));
+    QByteArray data = QJsonDocument(json).toJson();
+    sendData(data);
 }
 
 void ClientSocket::sendOfflineMsg(qulonglong ownId)
 {
-    QString fileName = "./msg/"+QString::number(ownId)+".txt";
-    QFile file(fileName);
+    QString filePath = "./msg/"+QString::number(ownId)+".txt";
+    QFile file(filePath);
     if(file.exists()){
         file.open(QIODevice::ReadWrite);
         while(true){
-            QByteArray type = file.readLine();
-            if(type == "") break;
-            uint length = file.readLine().toUInt();
+            QByteArray len = file.readLine();
+            if(len == "") break;
+            uint length = len.toUInt();
             QByteArray data = file.read(length);
             QString str = byteArrayToUnicode(data);
             QByteArray data_ut8 = str.toUtf8();
-            send(type,data_ut8);
-            if(type == chatGroupType+'\n'){//如果是群消息，发送群成员
-                QJsonObject json = QJsonDocument::fromJson(data_ut8).object();
-                qulonglong groupId = json.value("groupId").toString().toULongLong();
-                searchFriendsOfGroup(groupId);
-            }
+            sendData(data_ut8);
+
+            /*改完自动弹出聊天窗口删除下面代码*/
+            QJsonObject json = QJsonDocument::fromJson(data).object();
+            if(json.value("type").toInt() == chatGroupType)
+                searchFriendsOfGroup(json.value("groupId").toString().toULongLong());
         }
-        emit toServerUpdata("离线消息已发送.");
+        emit toServerUpdate("离线消息已发送.");
         file.close();
-        if(!QFile::remove(fileName)){
+        if(!QFile::remove(filePath)){
             file.open(QIODevice::WriteOnly);
             file.close();
         }
     }
 }
 
-uint ClientSocket::byteArrayToUint(const QByteArray &byteArray)
+void ClientSocket::pixmapToByteArray(QByteArray &imageByteArray, const QPixmap &pixmap)
+{
+    if(pixmap.isNull()){
+        imageByteArray = "";
+        return ;
+    }
+    QBuffer buffer;
+    pixmap.save(&buffer,"jpg");
+    imageByteArray.resize(buffer.data().size());
+    imageByteArray = buffer.data();
+}
+
+int ClientSocket::stringToInt(const QString &string)
 {
     bool isSuccess;
-    uint number = byteArray.toUInt(&isSuccess,10);//数据长度
-    emit toServerUpdata(byteArray);
-    emit toServerUpdata(QString::number(number,10));
+    int number = string.toInt(&isSuccess,10);//数据长度
+    emit toServerUpdate(string);
+    emit toServerUpdate(QString::number(number,10));
     if(!isSuccess) {
-        emit toServerUpdata("QByteArray转换uint失败");
+        emit toServerUpdate("QString转换int失败");
         return 0;
     }
     else {
-        emit toServerUpdata("QByteArray转换uint成功");
+        emit toServerUpdate("QString转换int成功");
         return number;
     }
 }
@@ -798,14 +918,14 @@ qulonglong ClientSocket::stringToQulonglong(const QString &string)
 {
     bool isSuccess;
     qulonglong number = string.toULongLong(&isSuccess,10);
-    emit toServerUpdata(string);
-    emit toServerUpdata(QString::number(number,10));
+    emit toServerUpdate(string);
+    emit toServerUpdate(QString::number(number,10));
     if(!isSuccess) {
-        emit toServerUpdata("QString转换qulonglong失败");
+        emit toServerUpdate("QString转换qulonglong失败");
         return 0;
     }
     else {
-        emit toServerUpdata("QString转换qulonglong成功");
+        emit toServerUpdate("QString转换qulonglong成功");
         return number;
     }
 }
