@@ -15,8 +15,8 @@ ServerSocket::ServerSocket(quint16 port, QTcpServer *parent) :
     db->setHostName("localhost");//选择本地主机，127.0.0.1
     db->setDatabaseName(dsn);    //设置数据源名称
     db->setUserName("G_bg");     //登录用户
-    db->setPassword("19980728"); //密码
-    db->setPort(1433);          //数据库端口
+    db->setPassword("********"); //密码
+    db->setPort(****);          //数据库端口
 
     listen(QHostAddress("172.16.225.210"),port);//监听端口
 }
